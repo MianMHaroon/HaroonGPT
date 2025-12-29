@@ -9,9 +9,15 @@ jobs:
   ping-qdrant:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Qdrant
+      - name: Ping Qdrant (silent)
         env:
           QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
           QDRANT_URL: ${{ secrets.QDRANT_URL }}
         run: |
-          curl -X GET "$QDRANT_URL/collections" -H "api-key: $QDRANT_API_KEY"
+          response=$(curl -s -o /dev/null -w "%{http_code}" -X GET "$QDRANT_URL/collections" -H "api-key: $QDRANT_API_KEY")
+          if [ "$response" -eq 200 ]; then
+            echo "✅ Qdrant cluster ping succeeded"
+          else
+            echo "❌ Qdrant cluster ping failed with HTTP code $response"
+            exit 1
+          fi
