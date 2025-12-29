@@ -1,0 +1,15 @@
+name: Keep Streamlit App Alive
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"  # every 10 minutes
+  workflow_dispatch:
+
+jobs:
+  ping-streamlit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Streamlit app
+        run: |
+          curl -s https://haroongpt.streamlit.app/ > /dev/null
+          echo "✅ Streamlit app pinged successfully"
