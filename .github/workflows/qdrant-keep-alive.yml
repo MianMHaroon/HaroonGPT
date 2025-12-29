@@ -1,0 +1,17 @@
+name: Keep Qdrant Cluster Alive
+
+on:
+  schedule:
+    - cron: "0 0 */3 * *"   # every 3 days
+  workflow_dispatch:
+
+jobs:
+  ping-qdrant:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Qdrant
+        env:
+          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+          QDRANT_URL: ${{ secrets.QDRANT_URL }}
+        run: |
+          curl -X GET "$QDRANT_URL/collections" -H "api-key: $QDRANT_API_KEY"
