@@ -1,42 +1,53 @@
 name: Keep Streamlit App Alive
+
 on:
   schedule:
-    - cron: "0 * * * *"   # every hour (at minute 0)
-  workflow_dispatch:
+    - cron: "0 * * * *"   # Every hour at minute 0
+  workflow_dispatch:       # Manual trigger option
 
 jobs:
   wake-streamlit:
     runs-on: ubuntu-latest
+    timeout-minutes: 8
+    
     steps:
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
           
       - name: Cache Playwright browsers
-        uses: actions/cache@v3
+        id: playwright-cache
+        uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-v1
+          restore-keys: |
+            playwright-${{ runner.os }}-
           
-      - name: Install system dependencies
+      - name: Install Playwright
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libgbm1
-          
-      - name: Install Python dependencies
-        run: |
-          pip install --upgrade pip
           pip install playwright==1.45.0
+          
+      - name: Install Chromium (first time - with dependencies)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: |
           playwright install chromium --with-deps
+          
+      - name: Install Chromium (cached - browser only)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: |
+          playwright install chromium
           
       - name: Wake Streamlit App
         run: |
-          python - <<EOF
+          python - <<'EOF'
           from playwright.sync_api import sync_playwright
           import time
           
           url = "https://haroongpt.streamlit.app/"
+          
+          print(f"🌐 Navigating to {url}")
           
           with sync_playwright() as p:
               browser = p.chromium.launch(headless=True)
@@ -46,22 +57,21 @@ jobs:
               )
               page = context.new_page()
               
-              print(f"🌐 Navigating to {url}")
+              # Navigate and wait for network to be idle
               page.goto(url, wait_until='networkidle', timeout=90000)
               
-              print("⏳ Waiting for app to fully load (60 seconds)...")
-              page.wait_for_timeout(60000)  # wait 60 seconds (1 minute)
+              print("⏳ Staying on page for 60 seconds...")
               
-              # Simulate user activity
-              try:
-                  page.mouse.move(100, 100)
-                  page.wait_for_timeout(1000)
-                  page.mouse.move(500, 500)
-                  page.wait_for_timeout(1000)
-                  page.mouse.move(800, 600)
-              except Exception as e:
-                  print(f"Mouse movement failed: {e}")
+              # Simulate user activity every 15 seconds
+              for i in range(4):
+                  page.wait_for_timeout(15000)  # 15 seconds
+                  try:
+                      # Move mouse to simulate activity
+                      page.mouse.move(100 + (i * 200), 100 + (i * 150))
+                      print(f"  ✓ Activity at {(i+1)*15} seconds")
+                  except Exception as e:
+                      print(f"  ⚠ Mouse movement warning: {e}")
               
-              print("✅ Streamlit app successfully accessed and stayed for 1 minute")
+              print("✅ Successfully kept Streamlit app alive for 60 seconds")
               browser.close()
           EOF
