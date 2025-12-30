@@ -1,8 +1,9 @@
 name: Keep Streamlit App Alive
 on:
   schedule:
-    - cron: "*/30 * * * *"   # every 30 minutes
+    - cron: "0 * * * *"   # every hour (at minute 0)
   workflow_dispatch:
+
 jobs:
   wake-streamlit:
     runs-on: ubuntu-latest
@@ -11,25 +12,56 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
+          
+      - name: Cache Playwright browsers
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-v1
+          
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libgbm1
+          
       - name: Install Python dependencies
         run: |
           pip install --upgrade pip
           pip install playwright==1.45.0
-          playwright install chromium
+          playwright install chromium --with-deps
+          
       - name: Wake Streamlit App
         run: |
           python - <<EOF
           from playwright.sync_api import sync_playwright
+          import time
+          
           url = "https://haroongpt.streamlit.app/"
+          
           with sync_playwright() as p:
               browser = p.chromium.launch(headless=True)
-              page = browser.new_page()
-              page.goto(url)
-              page.wait_for_timeout(5000)  # wait 5 seconds
+              context = browser.new_context(
+                  viewport={'width': 1920, 'height': 1080},
+                  user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+              )
+              page = context.new_page()
+              
+              print(f"🌐 Navigating to {url}")
+              page.goto(url, wait_until='networkidle', timeout=90000)
+              
+              print("⏳ Waiting for app to fully load (60 seconds)...")
+              page.wait_for_timeout(60000)  # wait 60 seconds (1 minute)
+              
+              # Simulate user activity
+              try:
+                  page.mouse.move(100, 100)
+                  page.wait_for_timeout(1000)
+                  page.mouse.move(500, 500)
+                  page.wait_for_timeout(1000)
+                  page.mouse.move(800, 600)
+              except Exception as e:
+                  print(f"Mouse movement failed: {e}")
+              
+              print("✅ Streamlit app successfully accessed and stayed for 1 minute")
               browser.close()
-          print("✅ Streamlit app pinged via browser")
           EOF
