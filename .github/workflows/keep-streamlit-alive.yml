@@ -6,10 +6,31 @@ on:
   workflow_dispatch:
 
 jobs:
-  ping-streamlit:
+  wake-streamlit:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Streamlit app
+      - name: Install Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.10
+
+      - name: Install dependencies
         run: |
-          curl -s https://haroongpt.streamlit.app/ > /dev/null
-          echo "✅ Streamlit app pinged successfully"
+          pip install playwright
+          playwright install
+
+      - name: Wake Streamlit App
+        run: |
+          python - <<EOF
+          from playwright.sync_api import sync_playwright
+
+          url = "https://haroongpt.streamlit.app/"
+
+          with sync_playwright() as p:
+              browser = p.chromium.launch(headless=True)
+              page = browser.new_page()
+              page.goto(url)
+              page.wait_for_timeout(5000)  # wait 5 seconds
+              browser.close()
+          print("✅ Streamlit app pinged via browser")
+          EOF
